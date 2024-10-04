@@ -1,6 +1,7 @@
 package com.example.drawalinegame
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
@@ -18,32 +19,42 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         drawView = findViewById(R.id.drawView)
-
-        // Tải JSON từ file assets
         shapeList = loadShapesFromAssets()
 
-        // Hiển thị hình đầu tiên (line)
-        drawView.setShape(shapeList[currentShapeIndex])
+
+
+        // Hiển thị hình đầu tiên
+        drawView.setShape(shapeList[currentShapeIndex], determineShapeType(currentShapeIndex))
 
         // Xử lý nút next
         findViewById<Button>(R.id.btnNext).setOnClickListener {
+            Log.d("MainActivity", "Next button clicked")
             currentShapeIndex = (currentShapeIndex + 1) % shapeList.size
-            drawView.setShape(shapeList[currentShapeIndex])  // Hiển thị hình tiếp theo
+            Log.d("MainActivity", "Current Shape Index: $currentShapeIndex")
+            Log.d("MainActivity", "Shape Type: ${determineShapeType(currentShapeIndex)}")
+            drawView.setShape(shapeList[currentShapeIndex], determineShapeType(currentShapeIndex))
         }
 
-        // Nút delete chưa gán chức năng
-        findViewById<Button>(R.id.btnDelete).setOnClickListener {
-            // Chưa gán chức năng
-        }
     }
 
     private fun loadShapesFromAssets(): Array<ShapeModel> {
-        val inputStream = assets.open("tdata.json")  // File JSON của bạn trong assets
+        val inputStream = assets.open("tdata.json")
         val reader = BufferedReader(InputStreamReader(inputStream))
         val json = StringBuilder()
         reader.forEachLine { json.append(it) }
         reader.close()
 
-        return Gson().fromJson(json.toString(), Array<ShapeModel>::class.java)
+         val shapes = Gson().fromJson(json.toString(), Array<ShapeModel>::class.java)
+        Log.d("MainActivity", "Loaded ${shapes.size} shapes") // Dòng log này
+        return shapes
+
+    }
+
+    private fun determineShapeType(index: Int): String {
+        return when (index % 2) {  // 0 cho line, 1 cho hinhVuong
+            0 -> "line"
+            1 -> "hinhVuong"
+            else -> "line"  // Mặc định
+        }
     }
 }
