@@ -1,117 +1,135 @@
 package com.example.drawalinegame
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.PathParser
 
-class SquarePathView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
+class SquarePathView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : View(context, attrs) {
 
-    // Paint để vẽ từ JSON
-    private val paint: Paint = Paint().apply {
-        style = Paint.Style.FILL_AND_STROKE
-        strokeWidth = 4f
-    }
-
-    // Paint để vẽ cho đường vẽ của user
-    private val userPathPaint: Paint = Paint().apply {
+    private val pathList = mutableListOf<PathData>()  // Lưu thông tin về path và màu sắc
+    private val completedPaths = mutableSetOf<Path>()
+    private var currentPath: Path? = null
+    private val paint = Paint().apply {
         style = Paint.Style.STROKE
-        strokeWidth = 4f
-        color = Color.RED // Màu đỏ cho đường vẽ tay
+        strokeWidth = 10f
     }
 
-    // Biến để lưu dữ liệu hình vuông
     private var squareData: ShapeModel.SquareData? = null
 
-    // Đường vẽ của người dùng
-    private var userPath: Path = Path()
+    data class PathData(val path: Path, val color: Int) // Lớp lưu path và màu sắc
 
-    // Phương thức để cập nhật dữ liệu hình vuông từ JSON
+    // Thiết lập dữ liệu hình vuông
     fun setSquareData(squareData: ShapeModel.SquareData) {
         this.squareData = squareData
-        invalidate() // Gọi invalidate() để vẽ lại
+        createSquarePaths()
+        invalidate()
     }
 
+    // Tạo các đường path từ dữ liệu hình vuông
+    private fun createSquarePaths() {
+        val square = squareData ?: return
+        pathList.clear()
+
+        try {
+            // Trích xuất và tạo path từ dữ liệu của từng cạnh, kèm theo màu sắc
+            val leftPath = PathParser.createPathFromPathData(UtilsPainting.extractPathData(square.left))
+            val rightPath = PathParser.createPathFromPathData(UtilsPainting.extractPathData(square.right))
+            val topPath = PathParser.createPathFromPathData(UtilsPainting.extractPathData(square.top))
+            val bottomPath = PathParser.createPathFromPathData(UtilsPainting.extractPathData(square.bottom))
+
+            // Giả định bạn có các màu sắc từ JSON
+            val leftColor = UtilsPainting.extractColor(square.left)
+            val rightColor = UtilsPainting.extractColor(square.right)
+            val topColor = UtilsPainting.extractColor(square.top)
+            val bottomColor = UtilsPainting.extractColor(square.bottom)
+
+            // Thêm các path và màu vào danh sách pathList
+            pathList.add(PathData(leftPath, leftColor))
+            pathList.add(PathData(rightPath, rightColor))
+            pathList.add(PathData(topPath, topColor))
+            pathList.add(PathData(bottomPath, bottomColor))
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Lỗi dữ liệu hình học", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Vẽ các đường path
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Lấy kích thước canvas
-        val canvasWidth = width
-        val canvasHeight = height
+        if (pathList.isEmpty()) return
 
-        // Tính toán dịch chuyển để căn giữa Path
-        squareData?.let { data ->
-            // Tính toán các bounds của toàn bộ path
-            val pathBounds = getCombinedPathBounds(data)
-            val dx = (canvasWidth - pathBounds.width()) / 2 - pathBounds.left
-            val dy = (canvasHeight - pathBounds.height()) / 2 - pathBounds.top
-
-            // Dịch chuyển canvas để vẽ Path ở giữa màn hình
-            canvas.save()
-            canvas.translate(dx, dy)
-
-            // Vẽ các cạnh từ JSON
-            drawPath(canvas, data.left)
-            drawPath(canvas, data.bottom)
-            drawPath(canvas, data.right)
-            drawPath(canvas, data.top)
-
-            // Phục hồi canvas để vẽ đường userPath không bị ảnh hưởng
-            canvas.restore()
+        // Không scale hay căn chỉnh, vẽ path với màu và tỷ lệ chính xác từ JSON
+        for (pathData in pathList) {
+            paint.color = pathData.color
+            canvas.drawPath(pathData.path, paint)
         }
-
-        // Vẽ đường mà người dùng vẽ
-        canvas.drawPath(userPath, userPathPaint)
     }
 
-    // Hàm vẽ Path dựa vào pathData từ JSON
-    private fun drawPath(canvas: Canvas, pathData: String) {
-        val path = PathParser.createPathFromPathData(UtilsPainting.extractPathData(pathData))
-        val colorString = UtilsPainting.extractFillColor(pathData)
-
-        // Thiết lập màu cho Paint từ JSON
-        paint.color = Color.parseColor(colorString)
-
-        // Vẽ Path từ JSON
-        canvas.drawPath(path, paint)
-    }
-
-    // Xử lý sự kiện chạm của người dùng
+    // Kiểm tra sự kiện khi người dùng vẽ
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
         val y = event.y
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // Bắt đầu một đường mới khi chạm vào màn hình
-                userPath.moveTo(x, y)
+                currentPath = findPathAtPoint(x, y)
+                return currentPath != null
             }
             MotionEvent.ACTION_MOVE -> {
-                // Kéo để tạo ra đường khi di chuyển ngón tay
-                userPath.lineTo(x, y)
+                currentPath?.let {
+                    invalidate()
+                }
             }
             MotionEvent.ACTION_UP -> {
-                // Khi người dùng nhấc ngón tay, đường vẽ đã hoàn thành
-                userPath.lineTo(x, y)
+                currentPath?.let {
+                    completedPaths.add(it)
+                    checkIfCompleted()
+                    currentPath = null
+                }
+                invalidate()
             }
         }
-
-        // Gọi invalidate để vẽ lại đường vẽ của người dùng
-        invalidate()
         return true
     }
 
-    // Hàm tính toán kích thước tổng thể của tất cả các path để căn giữa
-    private fun getCombinedPathBounds(squareData: ShapeModel.SquareData): RectF {
-        val bounds = RectF()
-        val pathList = listOf(squareData.left, squareData.bottom, squareData.right, squareData.top)
-
-        pathList.forEach { pathData ->
-            val pathBounds = UtilsPainting.getPathBounds(pathData)
-            bounds.union(pathBounds) // Hợp nhất tất cả các bounds
+    // Kiểm tra nếu người dùng đã vẽ xong tất cả các đường
+    private fun checkIfCompleted() {
+        if (completedPaths.size == pathList.size) {
+            Toast.makeText(context, "Thắng!", Toast.LENGTH_SHORT).show()
         }
-        return bounds
     }
+
+    private fun findPathAtPoint(x: Float, y: Float): Path? {
+        // Trích xuất path từ các cạnh của hình vuông
+        squareData?.let { square ->
+            val paths = listOf(
+                UtilsPainting.extractPathData(square.left),
+                UtilsPainting.extractPathData(square.right),
+                UtilsPainting.extractPathData(square.top),
+                UtilsPainting.extractPathData(square.bottom)
+            )
+
+            for (pathData in paths) {
+                val bounds = UtilsPainting.getPathBounds(pathData)
+                if (bounds.contains(x, y)) {
+                    return androidx.core.graphics.PathParser.createPathFromPathData(pathData)
+                }
+            }
+        }
+        return null
+    }
+
 }

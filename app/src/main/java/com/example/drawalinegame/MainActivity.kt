@@ -4,46 +4,46 @@ import android.os.Bundle
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var drawView: DrawView
+    private var currentShapeIndex = 0
+    private lateinit var shapeList: Array<ShapeModel>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        // Khởi tạo Custom View
-        val squarePathView = SquarePathView(this, null)
-        setContentView(squarePathView)
+        drawView = findViewById(R.id.drawView)
 
-        // Đọc dữ liệu từ file JSON trong thư mục assets
-        val jsonString = loadJSONFromAsset("tdata.json")
+        // Tải JSON từ file assets
+        shapeList = loadShapesFromAssets()
 
-        // Chuyển JSON thành ShapeModel
-        val shapeModel = Gson().fromJson(jsonString, Array<ShapeModel>::class.java)
+        // Hiển thị hình đầu tiên (line)
+        drawView.setShape(shapeList[currentShapeIndex])
 
-        // Thiết lập dữ liệu hình vuông
-        shapeModel?.firstOrNull()?.hinhVuong?.let { squarePathView.setSquareData(it) }
+        // Xử lý nút next
+        findViewById<Button>(R.id.btnNext).setOnClickListener {
+            currentShapeIndex = (currentShapeIndex + 1) % shapeList.size
+            drawView.setShape(shapeList[currentShapeIndex])  // Hiển thị hình tiếp theo
+        }
 
-       // val  clear = findViewById<Button>(R.id.xoa)
-//        clear.setOnClickListener {
-//            // Code to execute when the button is clicked
-//            // For example, to clear the SquarePathView:
-//            squarePathView.clearUserPath()
-//        }
-    }
-
-    // Hàm đọc file JSON từ thư mục assets
-    private fun loadJSONFromAsset(fileName: String): String? {
-        return try {
-            val inputStream = assets.open(fileName)
-            val size = inputStream.available()
-            val buffer = ByteArray(size)
-            inputStream.read(buffer)
-            inputStream.close()
-            String(buffer, Charsets.UTF_8)
-        } catch (ex: Exception) {
-            ex.printStackTrace()
-            null
+        // Nút delete chưa gán chức năng
+        findViewById<Button>(R.id.btnDelete).setOnClickListener {
+            // Chưa gán chức năng
         }
     }
 
+    private fun loadShapesFromAssets(): Array<ShapeModel> {
+        val inputStream = assets.open("tdata.json")  // File JSON của bạn trong assets
+        val reader = BufferedReader(InputStreamReader(inputStream))
+        val json = StringBuilder()
+        reader.forEachLine { json.append(it) }
+        reader.close()
+
+        return Gson().fromJson(json.toString(), Array<ShapeModel>::class.java)
+    }
 }

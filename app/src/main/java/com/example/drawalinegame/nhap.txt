@@ -1,0 +1,74 @@
+package com.example.drawalinegame
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.util.AttributeSet
+import android.view.View
+import androidx.core.graphics.PathParser
+
+
+class DrawView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
+
+    private val paint = Paint().apply {
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+    private var path: Path? = null
+    private var bounds: RectF? = null  // Thêm biến để lưu kích thước của path
+
+    // Hàm để set dữ liệu hình cần vẽ
+    fun setShape(shape: ShapeModel) {
+        path = Path() // Khởi tạo lại đường vẽ mới cho mỗi lần gọi
+        bounds = RectF() // Khởi tạo lại kích thước
+
+        // Xử lý hình line
+        shape.line?.let { lineData ->
+            paint.color = UtilsPainting.extractColor(lineData.line) // Lấy màu từ line
+            path = parsePathData(lineData.line) // Vẽ line
+            bounds?.union(UtilsPainting.getPathBounds(lineData.line)) // Lưu kích thước của line
+        }
+
+        // Xử lý hình vuông
+        shape.hinhVuong?.let { square ->
+            val squarePaths = listOf(
+                square.left,
+                square.bottom,
+                square.right,
+                square.top
+            )
+
+            for (pathData in squarePaths) {
+                paint.color = UtilsPainting.extractColor(pathData) // Lấy màu từ từng phần
+                path?.addPath(parsePathData(pathData)) // Thêm path vào đường vẽ
+                bounds?.union(UtilsPainting.getPathBounds(pathData)) // Cập nhật kích thước
+            }
+        }
+
+        invalidate()  // Yêu cầu vẽ lại view
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        bounds?.let { b ->
+            // Di chuyển canvas để hiển thị hình ở giữa
+            canvas.translate((width - b.width()) / 2, (height - b.height()) / 2)
+            path?.let {
+                canvas.drawPath(it, paint)
+            }
+        }
+    }
+
+    // Hàm để parse pathData từ chuỗi JSON (cần implement logic)
+    private fun parsePathData(pathData: String): Path {
+        val path = Path()
+        val extractedData = UtilsPainting.extractPathData(pathData)
+        PathParser.createPathFromPathData(extractedData)?.let {
+            path.addPath(it)
+        }
+        return path
+    }
+}
+

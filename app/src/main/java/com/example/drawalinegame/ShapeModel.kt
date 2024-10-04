@@ -19,4 +19,14 @@ class ShapeModel {
         @SerializedName("top")
         val top: String = ""
     }
+
+
+
+
+    @SerializedName("line")
+    val line: LineData? = null
+    class LineData {
+        @SerializedName("line")
+        val line: String = ""
+    }
 }
