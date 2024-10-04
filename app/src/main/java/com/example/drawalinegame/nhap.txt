@@ -64,3 +64,39 @@ override fun onDraw(canvas: Canvas) {
             }
         }
     }
+
+      // Kiểm tra xem điểm (x, y) có nằm trên path không
+        private fun isTouchingPath(x: Float, y: Float): Boolean {
+            return shapes.any { (shapePath, _) ->
+                // Tạo một Path để chứa hình dạng
+                val hitPath = Path()
+                hitPath.addPath(shapePath) // Thêm đường vào hitPath để kiểm tra
+
+                // Sử dụng phương thức Path.contains để kiểm tra xem điểm có nằm trên path không
+                hitPath.contains(x, y) // Trả về true nếu điểm nằm trên path, false nếu không
+            }
+        }
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////////////////////////////
+
+
+ private fun determineShapeType(index: Int): String {
+        val shape = shapeList[index]
+
+        val shapeMap = mapOf(
+            "line" to shape.line,
+            "hinhVuong" to shape.hinhVuong,
+            "tamGiac" to shape.tamGiac
+            // Bạn có thể thêm các loại hình khác ở đây
+        )
+
+        return shapeMap.entries.firstOrNull { it.value != null }?.key ?: "unknown" // Trả về tên hình đầu tiên không null hoặc "unknown"
+    }
+////
+
+
+

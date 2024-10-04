@@ -28,7 +28,6 @@ class MainActivity : AppCompatActivity() {
 
         // Xử lý nút next
         findViewById<Button>(R.id.btnNext).setOnClickListener {
-            Log.d("MainActivity", "Next button clicked")
             currentShapeIndex = (currentShapeIndex + 1) % shapeList.size
             Log.d("MainActivity", "Current Shape Index: $currentShapeIndex")
             Log.d("MainActivity", "Shape Type: ${determineShapeType(currentShapeIndex)}")
@@ -51,10 +50,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun determineShapeType(index: Int): String {
-        return when (index % 2) {  // 0 cho line, 1 cho hinhVuong
-            0 -> "line"
-            1 -> "hinhVuong"
-            else -> "line"  // Mặc định
-        }
+        val shape = shapeList[index]
+
+        val shapeMap = mapOf(
+            "line" to shape.line,
+            "hinhVuong" to shape.hinhVuong,
+            "tamGiac" to shape.tamGiac
+            // Bạn có thể thêm các loại hình khác ở đây
+        )
+
+        return shapeMap.entries.firstOrNull { it.value != null }?.key ?: "unknown" // Trả về tên hình đầu tiên không null hoặc "unknown"
     }
+
 }
