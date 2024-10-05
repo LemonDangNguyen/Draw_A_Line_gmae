@@ -9,152 +9,198 @@ import androidx.core.graphics.PathParser
 
 class DrawView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
 
-    private val paint = Paint().apply {
-        style = Paint.Style.FILL // Đổi thành STROKE để vẽ viền
-        isAntiAlias = true
-        strokeWidth = 5f // Độ dày của nét vẽ
-        color = Color.YELLOW // Màu viền mặc định
-    }
-
-    private val fillPaint = Paint().apply {
-        style = Paint.Style.FILL // Để tô màu
-        isAntiAlias = true
-        color = Color.YELLOW // Màu tô của đường vẽ của người dùng
-    }
-
     private var currentPath: Path? = null
-    private val shapes: MutableList<Pair<Path, Int>> = mutableListOf() // Danh sách lưu các hình từ JSON
+    private val paint = Paint().apply {
+        style = Paint.Style.STROKE
+        isAntiAlias = true
+        strokeWidth = 30f // Độ dày nét vẽ
+        color = Color.YELLOW // Màu vẽ của người dùng
+    }
+
+    private var squareEdges: MutableList<Pair<Path, Paint>> = mutableListOf() // Danh sách lưu cạnh và màu sắc từ JSON
     private val userDrawnPaths: MutableList<Path> = mutableListOf() // Đường vẽ của người dùng
-    private var bounds: RectF? = null
-    private val pathMeasure = PathMeasure()
 
-    // Cờ để kiểm tra xem user đã vẽ kín chưa
-    private var isShapeCompleted = false
+    private var squareBounds: RectF? = null // Giữ các thông tin về bounds của hình vuông
+    private var snapThreshold = 50f // Khoảng cách tối thiểu để snap vào cạnh
 
-    // Phương thức để thêm hình vào danh sách
+    // Trạng thái đã vẽ các cạnh
+    private var topDrawn = false
+    private var rightDrawn = false
+    private var bottomDrawn = false
+    private var leftDrawn = false
+
+    // Kiểm tra cạnh cuối cùng đã vẽ
+    private var lastEdge: Int? = null
+
+    // Thiết lập hình từ JSON
     fun setShape(shape: ShapeModel, shapeType: String) {
-        shapes.clear()
-        bounds = RectF()
+        squareEdges.clear()
+        squareBounds = RectF() // Khởi tạo lại bounds của hình vuông
 
         when (shapeType) {
-
             "hinhVuong" -> shape.hinhVuong?.let { square ->
-                val squarePaths = listOf(square.left, square.bottom, square.right, square.top)
-                val path = Path()
-                squarePaths.forEach { path.addPath(parsePathData(it)) }
-                val color = UtilsPainting.extractColor(squarePaths.first())
-                shapes.add(Pair(path, color))
-                squarePaths.forEach { bounds?.union(UtilsPainting.getPathBounds(it)) }
+                // Thêm các cạnh từ JSON vào danh sách, cùng với màu fill
+                addEdge(square.left)
+                addEdge(square.top)
+                addEdge(square.right)
+                addEdge(square.bottom)
             }
         }
-
         invalidate() // Vẽ lại View
+    }
+
+    // Hàm để thêm từng cạnh của hình vào danh sách `squareEdges`
+    private fun addEdge(pathData: String) {
+        val path = parsePathData(pathData)
+        val fillColor = UtilsPainting.extractColor(pathData)
+
+        // Lấy chiều rộng của cạnh từ đường Path
+        val edgePaint = Paint().apply {
+            style = Paint.Style.FILL // Chỉnh thành STROKE để vẽ đường viền
+            isAntiAlias = true
+            strokeWidth = 30f // Chiều rộng nét vẽ bằng chiều rộng của cạnh
+            color = fillColor
+        }
+        squareEdges.add(Pair(path, edgePaint))
+
+        // Cập nhật vùng bounds của hình vuông
+        val bounds = RectF()
+        path.computeBounds(bounds, true)
+        squareBounds?.union(bounds)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        bounds?.let { b ->
-            // Dịch chuyển canvas để căn giữa
-            canvas.translate((width - b.width()) / 2 - b.left, (height - b.height()) / 2 - b.top)
+        squareBounds?.let { bounds ->
+            // Dịch chuyển canvas để căn giữa hình vuông
+            val offsetX = (width - bounds.width()) / 2 - bounds.left
+            val offsetY = (height - bounds.height()) / 2 - bounds.top
+            canvas.translate(offsetX, offsetY)
 
-            // Vẽ các đường từ JSON
-            shapes.forEach { (shapePath, color) ->
-                paint.color = color
-                canvas.drawPath(shapePath, paint)
-            }
+            // Vẽ các cạnh của hình từ JSON
+            squareEdges.forEach { (path, paint) -> canvas.drawPath(path, paint) }
 
-            // Vẽ đường vẽ của người dùng
-            userDrawnPaths.forEach { path ->
-                canvas.drawPath(path, fillPaint) // Tô màu cho đường vẽ
-                canvas.drawPath(path, paint) // Vẽ lại đường viền
-            }
+            // Vẽ đường của người dùng
+            userDrawnPaths.forEach { path -> canvas.clipPath(path) }
 
             // Vẽ đường hiện tại
-            currentPath?.let { path ->
-                canvas.drawPath(path, fillPaint)
-                canvas.drawPath(path, paint)
-            }
+            currentPath?.let { path -> canvas.drawPath(path, this.paint) }
 
-            // Thay đổi màu khi hoàn thành
-            if (isShapeCompleted) {
-                fillPaint.color = Color.GREEN // Màu xanh nếu hoàn thành
-                canvas.drawPath(shapes[0].first, fillPaint) // Tô kín hình đã vẽ
+            // Nếu người dùng đã hoàn thành việc vẽ các cạnh, đổi màu thành xanh
+            if (areAllEdgesDrawn()) {
+                this.paint.color = Color.GREEN // Đổi màu thành xanh lá khi hoàn tất
+                squareEdges.forEach { (path, _) -> canvas.drawPath(path, this.paint) }
             }
         }
     }
 
-    // Xử lý sự kiện chạm
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Điều chỉnh vị trí chạm dựa trên bounds
-        val adjustedX = event.x - ((width - (bounds?.width() ?: 0f)) / 2) - (bounds?.left ?: 0f)
-        val adjustedY = event.y - ((height - (bounds?.height() ?: 0f)) / 2) - (bounds?.top ?: 0f)
+        squareBounds?.let { bounds ->
+            val x = event.x - ((width - bounds.width()) / 2 - bounds.left) // Điều chỉnh theo offset
+            val y = event.y - ((height - bounds.height()) / 2 - bounds.top) // Điều chỉnh theo offset
 
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                if (isTouchingPath(adjustedX, adjustedY)) {
-                    currentPath = Path().apply { moveTo(adjustedX, adjustedY) }
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    val snappedPoint = snapToSquare(x, y)
+                    currentPath = Path().apply { moveTo(snappedPoint.x, snappedPoint.y) }
+                    lastEdge = getEdgeIndex(snappedPoint.x, snappedPoint.y)
                     return true
                 }
-            }
-            MotionEvent.ACTION_MOVE -> {
-                currentPath?.let {
-                    it.lineTo(adjustedX, adjustedY) // Vẽ tới vị trí hiện tại
+
+                MotionEvent.ACTION_MOVE -> {
+                    currentPath?.let {
+                        val snappedPoint = snapToSquare(x, y)
+                        if (isOnEdge(snappedPoint.x, snappedPoint.y)) { // Kiểm tra có nằm trên cạnh không
+                            it.lineTo(snappedPoint.x, snappedPoint.y)
+                            invalidate()
+                        }
+                    }
+                    return true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    currentPath?.let {
+                        // Nếu người dùng chưa vẽ kín, xóa tất cả các đường vẽ
+                        if (!areAllEdgesDrawn()) {
+                            userDrawnPaths.clear() // Xóa các đường vẽ trước đó
+                        } else {
+                            userDrawnPaths.add(it)
+                        }
+                        updateEdgeStatus(x, y)
+                        currentPath = null
+                    }
                     invalidate()
                     return true
                 }
-            }
-            MotionEvent.ACTION_UP -> {
-                currentPath?.let {
-                    userDrawnPaths.add(it) // Thêm đường vẽ của người dùng vào danh sách
-                    checkCompletion() // Kiểm tra xem đã hoàn thành hay chưa
-                    currentPath = null // Đặt lại currentPath
-                }
-                invalidate()
-                return true
+
+                else -> {}
             }
         }
         return false
     }
 
-    // Kiểm tra xem người dùng đã vẽ kín hình chưa
-    private fun checkCompletion() {
-        val totalPathLength = shapes.sumOf { shape ->
-            pathMeasure.setPath(shape.first, false)
-            pathMeasure.length.toDouble() // Ép kiểu thành Double
+    // Hàm snap vị trí vẽ vào cạnh gần nhất của hình vuông
+    private fun snapToSquare(x: Float, y: Float): PointF {
+        val snappedX = when {
+            x <= squareBounds!!.left + snapThreshold -> squareBounds!!.left
+            x >= squareBounds!!.right - snapThreshold -> squareBounds!!.right
+            else -> x
         }
 
-        val drawnPathLength = userDrawnPaths.sumOf { path ->
-            pathMeasure.setPath(path, false)
-            pathMeasure.length.toDouble() // Ép kiểu thành Double
+        val snappedY = when {
+            y <= squareBounds!!.top + snapThreshold -> squareBounds!!.top
+            y >= squareBounds!!.bottom - snapThreshold -> squareBounds!!.bottom
+            else -> y
         }
 
-        // Nếu chiều dài đường vẽ của người dùng đạt ít nhất 95% chiều dài hình gốc
-        isShapeCompleted = drawnPathLength >= totalPathLength * 0.95
+        return PointF(snappedX, snappedY)
     }
 
+    // Kiểm tra xem tất cả các cạnh đã được vẽ chưa
+    private fun areAllEdgesDrawn(): Boolean {
+        return topDrawn && rightDrawn && bottomDrawn && leftDrawn
+    }
 
-    // Kiểm tra xem điểm chạm có gần đường không
-    private fun isTouchingPath(x: Float, y: Float): Boolean {
-        shapes.forEach { (shapePath, _) ->
-            val pathMeasure = PathMeasure(shapePath, false)
-            val length = pathMeasure.length
-            val tolerance = 10f // Độ chính xác khi chạm vào đường
+    // Cập nhật trạng thái của cạnh đang vẽ
+    private fun updateEdgeStatus(x: Float, y: Float) {
+        val edgeIndex = getEdgeIndex(x, y)
+        when (edgeIndex) {
+            0 -> topDrawn = true
+            1 -> rightDrawn = true
+            2 -> bottomDrawn = true
+            3 -> leftDrawn = true
+        }
+    }
 
-            for (i in 0 until length.toInt() step 5) {
-                val pos = FloatArray(2)
-                pathMeasure.getPosTan(i.toFloat(), pos, null)
-                val distance = Math.sqrt(((pos[0] - x) * (pos[0] - x) + (pos[1] - y) * (pos[1] - y)).toDouble()).toFloat()
+    // Xác định cạnh mà người dùng đang vẽ
+    private fun getEdgeIndex(x: Float, y: Float): Int? {
+        squareBounds?.let { bounds ->
+            return when {
+                y in bounds.top..(bounds.top + snapThreshold) -> 0 // Cạnh trên
+                x in bounds.right..(bounds.right + snapThreshold) -> 1 // Cạnh phải
+                y in bounds.bottom..(bounds.bottom + snapThreshold) -> 2 // Cạnh dưới
+                x in bounds.left..(bounds.left + snapThreshold) -> 3 // Cạnh trái
+                else -> null
+            }
+        }
+        return null
+    }
 
-                if (distance < tolerance) {
-                    return true
-                }
+    // Kiểm tra xem điểm có nằm trên cạnh không
+    private fun isOnEdge(x: Float, y: Float): Boolean {
+        squareEdges.forEach { (path, _) ->
+            val region = Region()
+            path.computeBounds(RectF(), true) // Cần xác định các bounds cho đường path
+            region.setPath(path, Region(Rect(0, 0, width, height))) // Xác định vùng cho cạnh
+            if (region.contains(x.toInt(), y.toInt())) {
+                return true // Nếu điểm nằm trong vùng của cạnh
             }
         }
         return false
     }
 
-    // string -> path
+    // Hàm chuyển đổi dữ liệu pathData từ JSON thành Path
     private fun parsePathData(pathData: String): Path {
         val path = Path()
         val extractedData = UtilsPainting.extractPathData(pathData)
