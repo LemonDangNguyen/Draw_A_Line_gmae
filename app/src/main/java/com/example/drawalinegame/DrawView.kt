@@ -37,12 +37,7 @@ class DrawView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
         bounds = RectF()
 
         when (shapeType) {
-            "line" -> shape.line?.let { lineData ->
-                val path = parsePathData(lineData.line)
-                val color = UtilsPainting.extractColor(lineData.line)
-                shapes.add(Pair(path, color))
-                bounds?.union(UtilsPainting.getPathBounds(lineData.line))
-            }
+
             "hinhVuong" -> shape.hinhVuong?.let { square ->
                 val squarePaths = listOf(square.left, square.bottom, square.right, square.top)
                 val path = Path()
@@ -50,14 +45,6 @@ class DrawView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
                 val color = UtilsPainting.extractColor(squarePaths.first())
                 shapes.add(Pair(path, color))
                 squarePaths.forEach { bounds?.union(UtilsPainting.getPathBounds(it)) }
-            }
-            "tamGiac" -> shape.tamGiac?.let { triangle ->
-                val trianglePaths = listOf(triangle.canh1, triangle.canh2, triangle.canh3)
-                val path = Path()
-                trianglePaths.forEach { path.addPath(parsePathData(it)) }
-                val color = UtilsPainting.extractColor(trianglePaths.first())
-                shapes.add(Pair(path, color))
-                trianglePaths.forEach { bounds?.union(UtilsPainting.getPathBounds(it)) }
             }
         }
 

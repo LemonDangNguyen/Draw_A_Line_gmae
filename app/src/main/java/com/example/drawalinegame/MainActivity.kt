@@ -53,9 +53,7 @@ class MainActivity : AppCompatActivity() {
         val shape = shapeList[index]
 
         val shapeMap = mapOf(
-            "line" to shape.line,
             "hinhVuong" to shape.hinhVuong,
-            "tamGiac" to shape.tamGiac
             // Bạn có thể thêm các loại hình khác ở đây
         )
 
